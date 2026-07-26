@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>決算カレンダー</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1c2333;
+    --paper:#f6f3ec;
+    --paper-2:#ffffff;
+    --line:#d9d3c4;
+    --seal:#b3392c;
+    --seal-soft:#f0d9d3;
+    --watch:#2b5a8c;
+    --watch-soft:#d9e6f0;
+    --nodate:#b3752c;
+    --nodate-soft:#f2e2c8;
+    --sub:#6b6455;
+    --accent-ink:#2e3b52;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Zen Kaku Gothic New', sans-serif;
+    min-height:100vh;
+    padding:max(8px, env(safe-area-inset-top)) 14px 40px;
+  }
+  header{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    padding:2px 2px 4px;
+    border-bottom:1px solid var(--line);
+    margin-bottom:6px;
+  }
+  h1{
+    font-family:'Shippori Mincho', serif;
+    font-size:13px;
+    letter-spacing:.04em;
+    margin:0;
+    font-weight:700;
+    color:var(--sub);
+  }
+  .sub-label{
+    font-family:'JetBrains Mono', monospace;
+    font-size:8px;
+    color:var(--sub);
+    letter-spacing:.03em;
+  }
+  .month-nav{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:4px;
+  }
+  .month-nav button{
+    background:none;
+    border:1px solid var(--ink);
+    color:var(--ink);
+    font-family:'JetBrains Mono', monospace;
+    font-size:16px;
+    width:36px;height:36px;
+    border-radius:2px;
+    cursor:pointer;
+    flex-shrink:0;
+  }
+  .month-nav button:active{background:var(--ink);color:var(--paper);}
+  .month-title{
+    font-family:'Shippori Mincho', serif;
+    font-size:24px;
+    font-weight:700;
+    letter-spacing:.04em;
+    color:#ffffff;
+    background:var(--ink);
+    padding:6px 16px;
+    border-radius:4px;
+  }
+  .swipe-hint{
+    text-align:center;
+    font-size:10px;
+    color:var(--sub);
+    font-family:'JetBrains Mono', monospace;
+    margin:0 0 10px;
+    letter-spacing:.05em;
+  }
+  .cal-wrap{
+    touch-action: pan-y;
+  }
+  .cal-grid{
+    display:grid;
+    grid-template-columns:repeat(7,1fr);
+    gap:4px;
+    margin-bottom:22px;
+  }
+  .dow{
+    text-align:center;
+    font-size:11px;
+    color:var(--sub);
+    font-family:'JetBrains Mono', monospace;
+    padding-bottom:4px;
+  }
+  .day{
+    background:var(--paper-2);
+    border:1px solid var(--line);
+    border-radius:3px;
+    min-height:78px;
+    padding:4px 3px;
+    position:relative;
+    overflow:hidden;
+    cursor:pointer;
+    transition:transform .12s ease;
+  }
+  .day:active{transform:scale(.96);}
+  .day.empty{background:transparent;border:none;cursor:default;}
+  .day.today{border:2px solid var(--accent-ink);}
+  .day .dnum{
+    font-family:'JetBrains Mono', monospace;
+    font-size:12px;
+    color:var(--sub);
+  }
+  .day.has-event .dnum{color:var(--ink);font-weight:700;}
+  .seal{
+    position:absolute;
+    top:3px; right:3px;
+    width:16px;height:16px;
+    border-radius:50%;
+    border:1.5px solid var(--seal);
+    color:var(--seal);
+    font-size:9px;
+    display:flex;align-items:center;justify-content:center;
+    font-family:'Shippori Mincho', serif;
+    font-weight:700;
+    background:var(--seal-soft);
+  }
+  .tags{
+    margin-top:4px;
+    display:flex;
+    flex-direction:column;
+    gap:2px;
+  }
+  .tag{
+    font-size:9.5px;
+    line-height:1.2;
+    background:var(--seal-soft);
+    color:var(--seal);
+    border-radius:2px;
+    padding:1px 3px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .tag a{
+    color:inherit;
+    text-decoration:none;
+  }
+  .tag a:active{text-decoration:underline;}
+  .tag.tag-watch{
+    background:var(--watch-soft);
+    color:var(--watch);
+  }
+  .seal.seal-watch{
+    border-color:var(--watch);
+    color:var(--watch);
+    background:var(--watch-soft);
+  }
+  .type-badge{
+    display:inline-block;
+    font-size:10px;
+    border-radius:2px;
+    padding:1px 5px;
+    margin-right:6px;
+    font-weight:700;
+    vertical-align:middle;
+  }
+  .type-badge.holding{color:var(--seal);background:var(--seal-soft);}
+  .type-badge.watch{color:var(--watch);background:var(--watch-soft);}
+  select.type-select{
+    width:100%;
+    padding:9px 10px;
+    border:1px solid var(--line);
+    border-radius:3px;
+    font-size:14px;
+    font-family:'Zen Kaku Gothic New', sans-serif;
+    background:var(--paper);
+  }
+  .sublist-heading{
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:.05em;
+    padding:10px 0 4px;
+    border-bottom:1px solid var(--line);
+    margin-bottom:2px;
+  }
+  .sublist-heading.watch-heading{color:var(--watch);}
+  .sublist-heading.holding-heading{color:var(--seal);}
+  section.panel{
+    background:var(--paper-2);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:16px;
+    margin-bottom:16px;
+  }
+  .panel h2{
+    font-family:'Shippori Mincho', serif;
+    font-size:16px;
+    margin:0 0 12px;
+    border-left:4px solid var(--seal);
+    padding-left:8px;
+  }
+  .holding{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:9px 0;
+    border-bottom:1px solid var(--line);
+    gap:8px;
+  }
+  .holding:last-child{border-bottom:none;}
+  .holding .name{font-weight:700;font-size:14px;}
+  .holding .code{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    color:var(--sub);
+  }
+  .holding .dates{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11px;
+    color:var(--seal);
+    margin-top:2px;
+  }
+  .holding .btns button{
+    border:none;background:none;color:var(--sub);
+    font-size:16px;padding:4px 6px;cursor:pointer;
+  }
+  .empty-msg{
+    color:var(--sub);
+    font-size:13px;
+    text-align:center;
+    padding:14px 0;
+  }
+  form.add-form{display:flex;flex-direction:column;gap:10px;}
+  form.add-form label{
+    font-size:12px;color:var(--sub);display:block;margin-bottom:3px;
+  }
+  form.add-form input{
+    width:100%;
+    padding:9px 10px;
+    border:1px solid var(--line);
+    border-radius:3px;
+    font-size:14px;
+    font-family:'Zen Kaku Gothic New', sans-serif;
+    background:var(--paper);
+  }
+  .date-row{display:flex;gap:6px;}
+  .date-row input{flex:1;}
+  .date-row button{
+    background:none;border:1px solid var(--line);
+    border-radius:3px;color:var(--seal);font-size:14px;
+    width:38px;cursor:pointer;
+  }
+  .add-date-btn{
+    align-self:flex-start;
+    background:none;border:none;color:var(--accent-ink);
+    font-size:12px;text-decoration:underline;cursor:pointer;padding:0;
+  }
+  .submit-btn{
+    margin-top:4px;
+    background:var(--ink);
+    color:var(--paper);
+    border:none;
+    padding:11px;
+    border-radius:3px;
+    font-size:14px;
+    font-weight:700;
+    letter-spacing:.03em;
+    cursor:pointer;
+  }
+  .submit-btn:active{opacity:.8;}
+  dialog{
+    border:none;
+    border-radius:6px;
+    padding:0;
+    width:min(340px, 90vw);
+  }
+  dialog::backdrop{background:rgba(28,35,51,.45);}
+  .dialog-inner{padding:18px;}
+  .dialog-inner h3{
+    font-family:'Shippori Mincho', serif;
+    margin:0 0 10px;
+    font-size:15px;
+  }
+  .dialog-list{list-style:none;padding:0;margin:0 0 12px;}
+  .dialog-list li{
+    padding:6px 0;
+    border-bottom:1px solid var(--line);
+    font-size:13px;
+  }
+  .dialog-close{
+    width:100%;
+    padding:9px;
+    background:var(--paper);
+    border:1px solid var(--ink);
+    border-radius:3px;
+    cursor:pointer;
+    font-size:13px;
+  }
+  textarea.import-box{
+    width:100%;
+    min-height:110px;
+    padding:9px 10px;
+    border:1px solid var(--line);
+    border-radius:3px;
+    font-size:13px;
+    font-family:'JetBrains Mono', monospace;
+    background:var(--paper);
+    resize:vertical;
+  }
+  .format-hint{
+    font-size:11.5px;
+    color:var(--sub);
+    line-height:1.6;
+    margin:6px 0 10px;
+    background:var(--paper);
+    border:1px dashed var(--line);
+    border-radius:3px;
+    padding:8px 10px;
+  }
+  .format-hint b{color:var(--ink);}
+  .import-result{
+    font-size:12px;
+    color:var(--accent-ink);
+    margin-top:8px;
+    min-height:16px;
+  }
+  .stale-badge{
+    display:inline-block;
+    font-size:10px;
+    color:var(--seal);
+    background:var(--seal-soft);
+    border-radius:2px;
+    padding:1px 5px;
+    margin-left:6px;
+    font-weight:700;
+    vertical-align:middle;
+  }
+  .nodate-badge{
+    display:inline-block;
+    font-size:10px;
+    color:var(--nodate);
+    background:var(--nodate-soft);
+    border-radius:2px;
+    padding:1px 5px;
+    margin-left:6px;
+    font-weight:700;
+    vertical-align:middle;
+  }
+  .nodate-banner{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    max-height:76px;
+    overflow-y:auto;
+    padding:8px 8px;
+    margin-bottom:8px;
+    border:1px solid var(--nodate);
+    border-radius:5px;
+    background:var(--paper-2);
+  }
+  .nodate-banner .nodate-label{
+    font-size:11px;
+    color:var(--nodate);
+    font-weight:700;
+    white-space:nowrap;
+    align-self:center;
+    padding-right:2px;
+  }
+  .nodate-chip{
+    flex-shrink:0;
+    font-size:11px;
+    border-radius:12px;
+    padding:3px 10px;
+    white-space:nowrap;
+    cursor:pointer;
+    border:1px solid;
+  }
+  .nodate-chip.holding-chip{
+    color:var(--seal);
+    background:var(--seal-soft);
+    border-color:var(--seal);
+  }
+  .nodate-chip.watch-chip{
+    color:var(--watch);
+    background:var(--watch-soft);
+    border-color:var(--watch);
+  }
+  .holding .btns{display:flex;gap:2px;}
+  .holding .btns button.update-btn{
+    font-size:12px;
+    color:var(--accent-ink);
+  }
+  #updateDialog .dialog-inner input[type="date"]{
+    width:100%;
+    padding:9px 10px;
+    border:1px solid var(--line);
+    border-radius:3px;
+    font-size:14px;
+    margin:8px 0 14px;
+  }
+  .existing-date-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    font-family:'JetBrains Mono', monospace;
+    font-size:13px;
+    padding:5px 0;
+    border-bottom:1px solid var(--line);
+  }
+  .existing-date-row button{
+    border:none;
+    background:none;
+    color:var(--seal);
+    font-size:14px;
+    cursor:pointer;
+    padding:2px 6px;
+  }
+  .no-dates-msg{
+    font-size:12px;
+    color:var(--sub);
+    padding:4px 0;
+  }
+  .dialog-btn-row{display:flex;gap:8px;}
+  .dialog-btn-row button{flex:1;}
+  .dialog-save-btn{
+    background:var(--ink);
+    color:var(--paper);
+    border:none;
+    padding:9px;
+    border-radius:3px;
+    cursor:pointer;
+    font-size:13px;
+  }
+  footer{
+    text-align:center;
+    font-size:10px;
+    color:var(--sub);
+    font-family:'JetBrains Mono', monospace;
+    margin-top:24px;
+    letter-spacing:.05em;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>決算カレンダー</h1>
+    <div class="sub-label">EARNINGS CALENDAR — 保有銘柄管理</div>
+  </div>
+</header>
+
+<div class="month-nav">
+  <button id="prevMonth">‹</button>
+  <div class="month-title" id="monthTitle"></div>
+  <button id="nextMonth">›</button>
+</div>
+<div class="swipe-hint">← スワイプで月を切り替え →</div>
+<div class="nodate-banner" id="nodateBanner"></div>
+
+<div class="cal-wrap" id="calWrap">
+  <div class="cal-grid" id="dowRow"></div>
+  <div class="cal-grid" id="calGrid"></div>
+</div>
+
+<section class="panel">
+  <h2>一括インポート</h2>
+  <div class="format-hint">
+    Claudeとのチャットで決算日の画像を送ると、貼り付け用テキストを作ってもらえます。<br>
+    1行につき1銘柄、<b>企業名, コード, 日付1/日付2/…, 種別, URL（任意）</b> の形式で貼り付けてください。種別は「保有」または「監視」（省略時は保有扱い）。<br>
+    例: <code>トヨタ自動車, 7203, 2026-05-08/2026-08-06, 保有</code><br>
+    例: <code>キーエンス, 6861, 2026-08-14, 監視, https://example.com/ir</code>
+  </div>
+  <textarea class="import-box" id="importBox" placeholder="トヨタ自動車, 7203, 2026-05-08, 保有&#10;キーエンス, 6861, 2026-08-14, 監視"></textarea>
+  <button type="button" class="submit-btn" id="importBtn" style="margin-top:8px;">一括登録する</button>
+  <div class="import-result" id="importResult"></div>
+  <button type="button" class="submit-btn" id="mergeBtn" style="margin-top:10px;background:var(--accent-ink);">今の登録済み銘柄の重複をまとめる</button>
+  <div class="import-result" id="mergeResult"></div>
+</section>
+
+<section class="panel">
+  <h2>銘柄を追加</h2>
+  <form class="add-form" id="addForm">
+    <div>
+      <label>種別</label>
+      <select class="type-select" id="inType">
+        <option value="holding">保有銘柄（赤）</option>
+        <option value="watch">監視銘柄（青）</option>
+      </select>
+    </div>
+    <div>
+      <label>企業名</label>
+      <input type="text" id="inName" placeholder="例：トヨタ自動車" required>
+    </div>
+    <div>
+      <label>証券コード（任意）</label>
+      <input type="text" id="inCode" placeholder="例：7203" maxlength="6">
+    </div>
+    <div>
+      <label>決算情報ページURL（任意・未入力なら証券コードから自動生成）</label>
+      <input type="url" id="inUrl" placeholder="https://...">
+    </div>
+    <div>
+      <label>決算発表日</label>
+      <div id="dateList"></div>
+      <button type="button" class="add-date-btn" id="addDateBtn">＋ 日付を追加</button>
+    </div>
+    <button type="submit" class="submit-btn">保存する</button>
+  </form>
+</section>
+
+<section class="panel">
+  <h2>監視銘柄一覧</h2>
+  <div id="watchListContainer"></div>
+</section>
+
+<section class="panel">
+  <h2>保有銘柄一覧</h2>
+  <div id="holdingsList"></div>
+</section>
+
+<section class="panel">
+  <h2>データのバックアップ・復元</h2>
+  <div class="format-hint">
+    iPhoneのホーム画面から開いている場合、端末の仕様上データが消えてしまうことがあります。銘柄を登録したら「コピーする」を押して、メモ帳など別の場所に貼り付けて保存しておくと安心です。
+  </div>
+  <button type="button" class="submit-btn" id="exportBtn">現在のデータをコピーする</button>
+  <div class="import-result" id="exportResult"></div>
+  <label style="font-size:12px;color:var(--sub);margin-top:14px;display:block;">復元する場合はバックアップした内容をここに貼り付け</label>
+  <textarea class="import-box" id="restoreBox" placeholder="ここにバックアップデータを貼り付け"></textarea>
+  <button type="button" class="submit-btn" id="restoreBtn" style="margin-top:8px;">この内容で復元する</button>
+  <div class="import-result" id="restoreResult"></div>
+</section>
+
+<dialog id="dayDialog">
+  <div class="dialog-inner">
+    <h3 id="dialogDate"></h3>
+    <ul class="dialog-list" id="dialogList"></ul>
+    <button class="dialog-close" id="dialogClose">閉じる</button>
+  </div>
+</dialog>
+
+<dialog id="updateDialog">
+  <div class="dialog-inner">
+    <h3 id="updateDialogTitle"></h3>
+    <div id="existingDatesList" style="margin-bottom:10px;"></div>
+    <label style="font-size:12px;color:var(--sub);">新しい決算発表日を追加</label>
+    <input type="date" id="updateDateInput">
+    <div class="dialog-btn-row">
+      <button class="dialog-close" id="updateCancelBtn">閉じる</button>
+      <button class="dialog-save-btn" id="updateSaveBtn">追加する</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="deleteDialog">
+  <div class="dialog-inner">
+    <h3 id="deleteDialogTitle"></h3>
+    <div class="dialog-btn-row">
+      <button class="dialog-close" id="deleteCancelBtn">キャンセル</button>
+      <button class="dialog-save-btn" id="deleteConfirmBtn" style="background:var(--seal);">削除する</button>
+    </div>
+  </div>
+</dialog>
+
+<footer>データはこの端末のブラウザ内にのみ保存されます</footer>
+
+<script>
+const STORAGE_KEY = 'kessan-calendar-stocks';
+
+async function loadStocks(){
+  try{
+    if(window.storage){
+      const result = await window.storage.get(STORAGE_KEY);
+      return (result && result.value) ? JSON.parse(result.value) : [];
+    }
+  }catch(e){ /* key not found or storage unavailable, fall through */ }
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  }catch(e){ return []; }
+}
+
+async function saveStocks(stocksToSave){
+  try{
+    if(window.storage){
+      await window.storage.set(STORAGE_KEY, JSON.stringify(stocksToSave));
+      return;
+    }
+  }catch(e){ /* fall through to localStorage */ }
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stocksToSave));
+  }catch(e){ console.error('保存に失敗しました', e); }
+}
+
+let stocks = [];
+let viewDate = new Date();
+viewDate.setDate(1);
+
+const dowRow = document.getElementById('dowRow');
+const dowNames = ['日','月','火','水','木','金','土'];
+dowNames.forEach(d=>{
+  const el = document.createElement('div');
+  el.className = 'dow';
+  el.textContent = d;
+  dowRow.appendChild(el);
+});
+
+function fmtDate(d){
+  const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+
+function getStockUrl(stock){
+  if(stock.url) return stock.url;
+  if(stock.code) return `https://kabutan.jp/stock/finance?code=${encodeURIComponent(stock.code)}`;
+  return null;
+}
+
+function eventsByDate(){
+  const map = {};
+  stocks.forEach(s=>{
+    (s.dates||[]).forEach(dt=>{
+      if(!map[dt]) map[dt] = [];
+      map[dt].push(s);
+    });
+  });
+  return map;
+}
+
+function renderCalendar(){
+  const grid = document.getElementById('calGrid');
+  grid.innerHTML = '';
+  const y = viewDate.getFullYear(), m = viewDate.getMonth();
+  document.getElementById('monthTitle').textContent = `${y}年 ${m+1}月`;
+
+  const firstDow = new Date(y, m, 1).getDay();
+  const daysInMonth = new Date(y, m+1, 0).getDate();
+  const evMap = eventsByDate();
+  const todayStr = fmtDate(new Date());
+
+  for(let i=0;i<firstDow;i++){
+    const empty = document.createElement('div');
+    empty.className = 'day empty';
+    grid.appendChild(empty);
+  }
+  for(let d=1; d<=daysInMonth; d++){
+    const dateObj = new Date(y,m,d);
+    const dstr = fmtDate(dateObj);
+    const cell = document.createElement('div');
+    cell.className = 'day';
+    if(dstr === todayStr) cell.classList.add('today');
+    const events = evMap[dstr] || [];
+    if(events.length) cell.classList.add('has-event');
+
+    const num = document.createElement('div');
+    num.className = 'dnum';
+    num.textContent = d;
+    cell.appendChild(num);
+
+    if(events.length){
+      const hasHolding = events.some(s => (s.type || 'holding') === 'holding');
+      const hasWatch = events.some(s => s.type === 'watch');
+      const seal = document.createElement('div');
+      seal.className = 'seal' + (!hasHolding && hasWatch ? ' seal-watch' : '');
+      seal.textContent = '決';
+      cell.appendChild(seal);
+
+      const tagWrap = document.createElement('div');
+      tagWrap.className = 'tags';
+      events.slice(0,2).forEach(s=>{
+        const tag = document.createElement('div');
+        tag.className = 'tag' + (s.type === 'watch' ? ' tag-watch' : '');
+        tag.textContent = s.name;
+        tagWrap.appendChild(tag);
+      });
+      if(events.length > 2){
+        const more = document.createElement('div');
+        more.className = 'tag';
+        more.textContent = `他${events.length-2}件`;
+        tagWrap.appendChild(more);
+      }
+      cell.appendChild(tagWrap);
+    }
+
+    cell.addEventListener('click', ()=> openDayDialog(dstr, events));
+    grid.appendChild(cell);
+  }
+}
+
+function openDayDialog(dstr, events){
+  const dialog = document.getElementById('dayDialog');
+  const [y,m,d] = dstr.split('-');
+  document.getElementById('dialogDate').textContent = `${y}年${parseInt(m)}月${parseInt(d)}日の決算`;
+  const list = document.getElementById('dialogList');
+  list.innerHTML = '';
+  if(events.length === 0){
+    const li = document.createElement('li');
+    li.textContent = 'この日の決算発表はありません';
+    list.appendChild(li);
+  }else{
+    events.forEach(s=>{
+      const li = document.createElement('li');
+      li.style.color = s.type === 'watch' ? 'var(--watch)' : 'var(--seal)';
+      const label = s.type === 'watch' ? '[監視] ' : '[保有] ';
+      const nameText = label + (s.code ? `${s.name}（${s.code}）` : s.name);
+      const url = getStockUrl(s);
+      if(url){
+        li.innerHTML = `${escapeHtml(nameText)} <a href="${url}" target="_blank" rel="noopener noreferrer" style="color:inherit;">資料を見る 📄</a>`;
+      }else{
+        li.textContent = nameText;
+      }
+      list.appendChild(li);
+    });
+  }
+  dialog.showModal();
+}
+document.getElementById('dialogClose').addEventListener('click', ()=>{
+  document.getElementById('dayDialog').close();
+});
+
+document.getElementById('prevMonth').addEventListener('click', ()=>{
+  viewDate.setMonth(viewDate.getMonth()-1);
+  renderCalendar();
+});
+document.getElementById('nextMonth').addEventListener('click', ()=>{
+  viewDate.setMonth(viewDate.getMonth()+1);
+  renderCalendar();
+});
+
+// ---- Swipe navigation ----
+const calWrap = document.getElementById('calWrap');
+let touchStartX = 0, touchStartY = 0, touchMoved = false;
+calWrap.addEventListener('touchstart', (e)=>{
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+  touchMoved = false;
+}, {passive:true});
+calWrap.addEventListener('touchmove', ()=>{ touchMoved = true; }, {passive:true});
+calWrap.addEventListener('touchend', (e)=>{
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  if(Math.abs(dx) > 55 && Math.abs(dx) > Math.abs(dy) * 1.5){
+    if(dx < 0){
+      viewDate.setMonth(viewDate.getMonth()+1);
+    }else{
+      viewDate.setMonth(viewDate.getMonth()-1);
+    }
+    renderCalendar();
+  }
+});
+
+// ---- Add form: dynamic date rows ----
+const dateList = document.getElementById('dateList');
+function addDateRow(value=''){
+  const row = document.createElement('div');
+  row.className = 'date-row';
+  const input = document.createElement('input');
+  input.type = 'date';
+  input.value = value;
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.textContent = '×';
+  removeBtn.addEventListener('click', ()=>{
+    if(dateList.children.length > 1){
+      row.remove();
+    }else{
+      input.value = '';
+    }
+  });
+  row.appendChild(input);
+  row.appendChild(removeBtn);
+  dateList.appendChild(row);
+}
+addDateRow();
+document.getElementById('addDateBtn').addEventListener('click', ()=> addDateRow());
+
+document.getElementById('addForm').addEventListener('submit', (e)=>{
+  e.preventDefault();
+  const type = document.getElementById('inType').value;
+  const name = document.getElementById('inName').value.trim();
+  const code = document.getElementById('inCode').value.trim();
+  const url = document.getElementById('inUrl').value.trim();
+  const dateInputs = Array.from(dateList.querySelectorAll('input[type="date"]'));
+  const dates = dateInputs.map(i=>i.value).filter(Boolean);
+  if(!name){
+    alert('企業名を入力してください');
+    return;
+  }
+  stocks.push({
+    id: Date.now().toString(36),
+    name, code, dates, type, url
+  });
+  saveStocks(stocks);
+  e.target.reset();
+  dateList.innerHTML = '';
+  addDateRow();
+  renderCalendar();
+  renderHoldings();
+});
+
+// ---- Bulk import ----
+document.getElementById('importBtn').addEventListener('click', ()=>{
+  const raw = document.getElementById('importBox').value;
+  const resultEl = document.getElementById('importResult');
+  const lines = raw.split('\n').map(l=>l.trim()).filter(Boolean);
+  if(lines.length === 0){
+    resultEl.textContent = 'テキストが入力されていません';
+    resultEl.style.color = 'var(--seal)';
+    return;
+  }
+  let added = 0, skipped = 0, updated = 0;
+  lines.forEach(line=>{
+    const parts = line.split(',').map(p=>p.trim());
+    const name = parts[0] || '';
+    const code = parts[1] || '';
+    const dateStr = parts[2] || '';
+    const typeStr = (parts[3] || '').trim();
+    const type = (typeStr === '監視' || typeStr.toLowerCase() === 'watch') ? 'watch' : 'holding';
+    const url = (parts[4] || '').trim();
+    const dates = dateStr.split('/').map(d=>d.trim()).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d));
+    if(!name){
+      skipped++;
+      return;
+    }
+    const existing = stocks.find(s =>
+      (code && s.code && s.code.trim().toLowerCase() === code.trim().toLowerCase()) ||
+      (s.name.trim() === name.trim())
+    );
+    if(existing){
+      if(!existing.dates) existing.dates = [];
+      dates.forEach(d=>{
+        if(!existing.dates.includes(d)) existing.dates.push(d);
+      });
+      if(typeStr) existing.type = type;
+      if(url) existing.url = url;
+      if(!existing.code && code) existing.code = code;
+      updated++;
+    }else{
+      stocks.push({
+        id: Date.now().toString(36) + Math.random().toString(36).slice(2,6),
+        name, code, dates, type, url
+      });
+      added++;
+    }
+  });
+  saveStocks(stocks);
+  renderCalendar();
+  renderHoldings();
+  document.getElementById('importBox').value = '';
+  resultEl.style.color = 'var(--accent-ink)';
+  resultEl.textContent = `新規${added}件・既存銘柄に日付追加${updated}件${skipped ? `（${skipped}件は形式エラーでスキップ）` : ''}`;
+});
+
+document.getElementById('mergeBtn').addEventListener('click', ()=>{
+  const map = new Map();
+  const result = [];
+  let mergedCount = 0;
+  stocks.forEach(s=>{
+    const key = (s.code && s.code.trim()) ? ('code:'+s.code.trim().toLowerCase()) : ('name:'+s.name.trim());
+    if(map.has(key)){
+      const existing = map.get(key);
+      (s.dates||[]).forEach(d=>{
+        if(!existing.dates.includes(d)) existing.dates.push(d);
+      });
+      if(!existing.url && s.url) existing.url = s.url;
+      if(!existing.code && s.code) existing.code = s.code;
+      mergedCount++;
+    }else{
+      const copy = Object.assign({}, s, { dates: (s.dates||[]).slice() });
+      map.set(key, copy);
+      result.push(copy);
+    }
+  });
+  stocks = result;
+  saveStocks(stocks);
+  renderCalendar();
+  renderHoldings();
+  const mergeResultEl = document.getElementById('mergeResult');
+  mergeResultEl.style.color = 'var(--accent-ink)';
+  mergeResultEl.textContent = mergedCount > 0 ? `${mergedCount}件の重複をまとめました` : '重複はありませんでした';
+});
+
+// ---- Backup / Restore ----
+document.getElementById('exportBtn').addEventListener('click', async ()=>{
+  const json = JSON.stringify(stocks);
+  const resultEl = document.getElementById('exportResult');
+  try{
+    await navigator.clipboard.writeText(json);
+    resultEl.style.color = 'var(--accent-ink)';
+    resultEl.textContent = 'コピーしました。メモ帳などに貼り付けて保存してください。';
+  }catch(e){
+    document.getElementById('restoreBox').value = json;
+    resultEl.style.color = 'var(--seal)';
+    resultEl.textContent = '自動コピーができなかったため、下の欄に表示しました。全選択してコピーしてください。';
+  }
+});
+document.getElementById('restoreBtn').addEventListener('click', ()=>{
+  const resultEl = document.getElementById('restoreResult');
+  try{
+    const parsed = JSON.parse(document.getElementById('restoreBox').value);
+    if(!Array.isArray(parsed)) throw new Error('invalid format');
+    stocks = parsed;
+    saveStocks(stocks);
+    renderCalendar();
+    renderHoldings();
+    resultEl.style.color = 'var(--accent-ink)';
+    resultEl.textContent = `${parsed.length}件のデータを復元しました`;
+  }catch(e){
+    resultEl.style.color = 'var(--seal)';
+    resultEl.textContent = '正しいデータ形式ではありません';
+  }
+});
+
+// ---- Holdings list ----
+function isStale(stock){
+  const dates = stock.dates || [];
+  if(dates.length === 0) return false;
+  const todayStr = fmtDate(new Date());
+  const future = dates.filter(d => d >= todayStr);
+  if(future.length > 0) return false;
+  const latest = dates.slice().sort().slice(-1)[0];
+  const latestDate = new Date(latest);
+  const diffDays = (new Date() - latestDate) / (1000*60*60*24);
+  return diffDays > 90;
+}
+function hasNoDate(stock){
+  return !stock.dates || stock.dates.length === 0;
+}
+function renderNoDateBanner(){
+  const wrap = document.getElementById('nodateBanner');
+  wrap.innerHTML = '';
+  const list = stocks.filter(hasNoDate);
+  if(list.length === 0){
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = 'flex';
+  const label = document.createElement('div');
+  label.className = 'nodate-label';
+  label.textContent = '📅未登録:';
+  wrap.appendChild(label);
+  list.forEach(s=>{
+    const chip = document.createElement('div');
+    chip.className = 'nodate-chip ' + (s.type === 'watch' ? 'watch-chip' : 'holding-chip');
+    chip.textContent = s.name;
+    chip.addEventListener('click', ()=> openUpdateDialog(s));
+    wrap.appendChild(chip);
+  });
+}
+
+let currentUpdateStockId = null;
+
+function renderHoldings(){
+  const watchWrap = document.getElementById('watchListContainer');
+  const holdWrap = document.getElementById('holdingsList');
+  watchWrap.innerHTML = '';
+  holdWrap.innerHTML = '';
+
+  const sortByNearest = (a,b)=>{
+    const na = nearestDate(a.dates), nb = nearestDate(b.dates);
+    return (na||'9999') > (nb||'9999') ? 1 : -1;
+  };
+  const watchList = stocks.filter(s => s.type === 'watch').sort(sortByNearest);
+  const holdingList = stocks.filter(s => s.type !== 'watch').sort(sortByNearest);
+
+  if(watchList.length === 0){
+    const msg = document.createElement('div');
+    msg.className = 'empty-msg';
+    msg.textContent = '監視銘柄はまだ登録されていません';
+    watchWrap.appendChild(msg);
+  }else{
+    watchList.forEach(s => watchWrap.appendChild(buildHoldingRow(s)));
+  }
+
+  if(holdingList.length === 0){
+    const msg = document.createElement('div');
+    msg.className = 'empty-msg';
+    msg.textContent = '保有銘柄はまだ登録されていません';
+    holdWrap.appendChild(msg);
+  }else{
+    holdingList.forEach(s => holdWrap.appendChild(buildHoldingRow(s)));
+  }
+  renderNoDateBanner();
+}
+
+function buildHoldingRow(s){
+    const row = document.createElement('div');
+    row.className = 'holding';
+    const left = document.createElement('div');
+    const stale = isStale(s);
+    const noDate = hasNoDate(s);
+    const typeLabel = s.type === 'watch' ? '<span class="type-badge watch">監視</span>' : '<span class="type-badge holding">保有</span>';
+    const url = getStockUrl(s);
+    const linkHtml = url ? ` <a href="${url}" target="_blank" rel="noopener noreferrer" style="font-size:11px;color:var(--accent-ink);">資料 📄</a>` : '';
+    left.innerHTML = `<div class="name">${typeLabel}${escapeHtml(s.name)}${noDate ? '<span class="nodate-badge">📅日付未登録</span>' : (stale ? '<span class="stale-badge">⚠️更新確認</span>' : '')}${linkHtml}</div>` +
+      (s.code ? `<div class="code">${escapeHtml(s.code)}</div>` : '') +
+      `<div class="dates">${(s.dates||[]).slice().sort().join(' / ') || '(日付未登録)'}</div>`;
+    const btns = document.createElement('div');
+    btns.className = 'btns';
+    const updateBtn = document.createElement('button');
+    updateBtn.className = 'update-btn';
+    updateBtn.textContent = '更新';
+    updateBtn.addEventListener('click', ()=> openUpdateDialog(s));
+    const delBtn = document.createElement('button');
+    delBtn.textContent = '🗑';
+    delBtn.addEventListener('click', ()=> openDeleteDialog(s));
+    btns.appendChild(updateBtn);
+    btns.appendChild(delBtn);
+    row.appendChild(left);
+    row.appendChild(btns);
+    return row;
+}
+
+function openUpdateDialog(stock){
+  currentUpdateStockId = stock.id;
+  document.getElementById('updateDialogTitle').textContent = `${stock.name} の決算発表日`;
+  document.getElementById('updateDateInput').value = '';
+  renderExistingDatesList();
+  document.getElementById('updateDialog').showModal();
+}
+function renderExistingDatesList(){
+  const stock = stocks.find(x => x.id === currentUpdateStockId);
+  const wrap = document.getElementById('existingDatesList');
+  wrap.innerHTML = '';
+  const dates = (stock && stock.dates) ? stock.dates.slice().sort() : [];
+  if(dates.length === 0){
+    const msg = document.createElement('div');
+    msg.className = 'no-dates-msg';
+    msg.textContent = '登録済みの日付はありません';
+    wrap.appendChild(msg);
+    return;
+  }
+  dates.forEach(d=>{
+    const row = document.createElement('div');
+    row.className = 'existing-date-row';
+    const span = document.createElement('span');
+    span.textContent = d;
+    const delBtn = document.createElement('button');
+    delBtn.textContent = '×';
+    delBtn.addEventListener('click', ()=>{
+      const st = stocks.find(x => x.id === currentUpdateStockId);
+      if(st){
+        st.dates = (st.dates||[]).filter(x => x !== d);
+        saveStocks(stocks);
+        renderCalendar();
+        renderHoldings();
+        renderExistingDatesList();
+      }
+    });
+    row.appendChild(span);
+    row.appendChild(delBtn);
+    wrap.appendChild(row);
+  });
+}
+document.getElementById('updateCancelBtn').addEventListener('click', ()=>{
+  document.getElementById('updateDialog').close();
+});
+document.getElementById('updateSaveBtn').addEventListener('click', ()=>{
+  const newDate = document.getElementById('updateDateInput').value;
+  if(!newDate){
+    alert('日付を入力してください');
+    return;
+  }
+  const stock = stocks.find(x => x.id === currentUpdateStockId);
+  if(stock){
+    if(!stock.dates) stock.dates = [];
+    if(!stock.dates.includes(newDate)){
+      stock.dates.push(newDate);
+    }
+    saveStocks(stocks);
+    renderCalendar();
+    renderHoldings();
+    document.getElementById('updateDateInput').value = '';
+    renderExistingDatesList();
+  }
+});
+let currentDeleteStockId = null;
+function openDeleteDialog(stock){
+  currentDeleteStockId = stock.id;
+  document.getElementById('deleteDialogTitle').textContent = `${stock.name} を削除しますか？`;
+  document.getElementById('deleteDialog').showModal();
+}
+document.getElementById('deleteCancelBtn').addEventListener('click', ()=>{
+  document.getElementById('deleteDialog').close();
+});
+document.getElementById('deleteConfirmBtn').addEventListener('click', ()=>{
+  stocks = stocks.filter(x => x.id !== currentDeleteStockId);
+  saveStocks(stocks);
+  renderCalendar();
+  renderHoldings();
+  document.getElementById('deleteDialog').close();
+});
+
+function nearestDate(dates){
+  if(!dates || dates.length===0) return null;
+  const today = fmtDate(new Date());
+  const future = dates.filter(d=>d>=today).sort();
+  return future.length ? future[0] : dates.slice().sort()[0];
+}
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+(async function init(){
+  stocks = await loadStocks();
+  renderCalendar();
+  renderHoldings();
+})();
+</script>
+</body>
+</html>
