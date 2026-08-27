@@ -1,0 +1,58 @@
+name: 決算日の日次同期
+
+on:
+  schedule:
+    # cron は UTC で書く。日本時間 = UTC + 9時間。
+    #   "0 11 * * *" (UTC) = 毎日 20:00 JST
+    # JPXが発表予定を更新するのが19時頃なので、その後を狙って20時に実行する。
+    - cron: '0 11 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'D1に書き込まず、取得と突合だけ試す'
+        type: boolean
+        default: false
+
+# 同時に2本走らせない（書き込み主体を1つに保つ・守ること#5）
+concurrency:
+  group: earnings-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      # Cloudflare側の準備が終わるまでは、毎晩エラー通知が飛ばないよう正常終了させる
+      - name: セットアップ状況の確認
+        id: guard
+        env:
+          SYNC_URL: ${{ secrets.SYNC_URL }}
+        run: |
+          if [ -z "$SYNC_URL" ]; then
+            echo "::notice::SYNC_URL が未設定のため同期をスキップします（Cloudflare側の準備が未完了）"
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-python@v5
+        if: steps.guard.outputs.ready == 'true'
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: 依存パッケージのインストール
+        if: steps.guard.outputs.ready == 'true'
+        run: pip install -r requirements.txt
+
+      - name: 決算日を取得してD1へ同期
+        if: steps.guard.outputs.ready == 'true'
+        env:
+          JQUANTS_API_KEY: ${{ secrets.JQUANTS_API_KEY }}
+          SYNC_URL: ${{ secrets.SYNC_URL }}
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: python scripts/sync_earnings.py

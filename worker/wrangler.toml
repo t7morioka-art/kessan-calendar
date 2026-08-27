@@ -1,0 +1,16 @@
+name = "kessan-calendar"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+
+# 画面はブラウザから直接開くので Workers.dev のURLを有効にしておく
+workers_dev = true
+
+[[d1_databases]]
+binding = "DB"
+database_name = "kessan-calendar"
+# ↓ wrangler d1 create 実行後に出力されるIDをここに貼る
+database_id = "PLACEHOLDER_DATABASE_ID"
+
+# secret（コードには絶対に書かない。wrangler secret put で登録する）
+#   VIEW_PASSWORD … 画面の合言葉
+#   SYNC_TOKEN    … GitHub Actions が名乗るトークン
