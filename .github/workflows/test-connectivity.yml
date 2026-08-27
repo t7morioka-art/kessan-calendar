@@ -1,0 +1,22 @@
+name: 接続確認テスト (J-Quants)
+
+# 手動実行のみ。本実装前の疎通確認用。
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: J-Quants API への到達確認
+        env:
+          # Secrets に未登録なら空文字が入る（その場合は到達性のみ確認する）
+          JQUANTS_API_KEY: ${{ secrets.JQUANTS_API_KEY }}
+        run: python scripts/test_connectivity.py
