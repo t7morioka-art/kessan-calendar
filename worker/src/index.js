@@ -173,6 +173,11 @@ li.row.past{opacity:.45}
   border:1px solid currentColor; letter-spacing:.06em;
 }
 .tag.holding{color:var(--hold)} .tag.watch{color:var(--watch)}
+.prov{
+  font-size:9.5px; margin-left:6px; padding:1px 5px; border-radius:4px;
+  background:var(--warn-bg); border:1px solid var(--warn-line);
+  color:var(--muted); vertical-align:middle; font-weight:500;
+}
 .note{
   background:var(--warn-bg); border:1px solid var(--warn-line);
   border-radius:10px; padding:13px 15px; font-size:12.5px; color:var(--muted);
@@ -218,7 +223,7 @@ async function calendarPage(env) {
 
   const [earningsRs, stocksRs, runRs] = await env.DB.batch([
     env.DB.prepare(`
-      SELECT e.date, e.fq, s.code, s.name, s.type
+      SELECT e.date, e.fq, e.source, s.code, s.name, s.type
       FROM earnings e
       JOIN stocks s ON s.code = e.code
       ORDER BY e.date ASC
@@ -248,7 +253,7 @@ async function calendarPage(env) {
     return `<li class="row ${esc(r.type)}${isPast ? ' past' : ''}">
       <div class="date"><div class="md">${md}</div><div class="dow">${dow}</div></div>
       <div class="info">
-        <div class="name">${esc(r.name)}</div>
+        <div class="name">${esc(r.name)}${r.source !== 'jquants' ? '<span class="prov">予定</span>' : ''}</div>
         <div class="meta">${esc(r.code)}${r.fq ? ` ・ ${esc(r.fq)}` : ''}</div>
       </div>
       <span class="tag ${esc(r.type)}">${label(r.type)}</span>
@@ -264,7 +269,7 @@ async function calendarPage(env) {
     const { md, dow } = formatDate(n.date);
     nextHtml = `<div class="next">
       <div class="when">つぎの決算発表 — ${when}</div>
-      <div class="big">${esc(n.name)}</div>
+      <div class="big">${esc(n.name)}${n.source !== 'jquants' ? '<span class="prov">予定</span>' : ''}</div>
       <div class="meta">${md}（${dow}）・${esc(n.code)}${n.fq ? ` ・ ${esc(n.fq)}` : ''}
         ・${label(n.type)}銘柄</div>
     </div>`;
@@ -403,6 +408,18 @@ async function handlePostEarnings(request, env) {
           fy = excluded.fy,
           updated_at = datetime('now')
       `).bind(code, date, it.fq ?? null, it.fy ?? null),
+    );
+
+    // J-Quantsが確定日を返したら、同じ銘柄の「未確定」データのうち近い日付のものを消す。
+    // 別ソースの予想日とJ-Quantsの確定日が数日ずれていると、同じ決算が2行並んでしまうため。
+    statements.push(
+      env.DB.prepare(`
+        DELETE FROM earnings
+        WHERE code = ?1
+          AND source <> 'jquants'
+          AND date <> ?2
+          AND ABS(julianday(date) - julianday(?2)) <= 14
+      `).bind(code, date),
     );
   }
 
