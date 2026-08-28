@@ -1,0 +1,27 @@
+name: 上場銘柄一覧の取得（初期設定用）
+
+# 手動実行のみ。証券コードと日本語社名の対応表を得るための一回限りの作業。
+# 取得するのはJPXの公開情報のみで、保有銘柄などの個人情報は含まない。
+on:
+  workflow_dispatch:
+
+jobs:
+  dump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: 上場銘柄一覧を取得
+        env:
+          JQUANTS_API_KEY: ${{ secrets.JQUANTS_API_KEY }}
+        run: python scripts/dump_master.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: master
+          path: master.json
+          retention-days: 1
