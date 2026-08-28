@@ -42,3 +42,26 @@ CREATE TABLE IF NOT EXISTS sync_runs (
   message       TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_sync_runs_started ON sync_runs (started_at DESC);
+
+-- ▼ ここから画面側で書き込むテーブル ▼
+-- GitHub Actions はこれらに一切書き込まない。
+-- 「同じデータを2箇所から書かない」を、テーブル単位で書き手を1つに固定することで守る。
+
+-- 手入力の決算日（J-Quantsが対応しない2月期・12月期などの銘柄用）
+-- Actionsが書く earnings とは別テーブルにして、混ざらないようにする
+CREATE TABLE IF NOT EXISTS manual_earnings (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  code       TEXT NOT NULL,
+  date       TEXT NOT NULL,              -- YYYY-MM-DD
+  note       TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (code, date)
+);
+CREATE INDEX IF NOT EXISTS idx_manual_earnings_date ON manual_earnings (date);
+
+-- 全上場銘柄の対応表（証券コード → 日本語社名）
+-- 銘柄追加時に社名を自動で埋め、打ち間違いを弾くために使う。JPXの公開情報のみ。
+CREATE TABLE IF NOT EXISTS listed (
+  code TEXT PRIMARY KEY,
+  name TEXT NOT NULL
+);

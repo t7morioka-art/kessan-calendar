@@ -200,7 +200,71 @@ button{
   border:0; border-radius:10px; background:var(--accent); color:#fff; cursor:pointer;
 }
 .err{color:var(--hold); font-size:12.5px; margin-top:14px}
+
+/* ナビゲーション */
+nav{display:flex; gap:6px; margin:14px 0 4px}
+nav a{
+  flex:1; text-align:center; text-decoration:none; font-size:13px; padding:9px 4px;
+  border:1px solid var(--line); border-radius:8px; color:var(--muted); background:var(--card);
+}
+nav a.on{background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600}
+
+/* 月カレンダー */
+.calhead{display:flex; align-items:center; justify-content:space-between; margin:18px 0 10px}
+.calhead .ym{font-size:16px; font-weight:700}
+.calhead a{
+  text-decoration:none; color:var(--ink); background:var(--card);
+  border:1px solid var(--line); border-radius:8px; padding:7px 14px; font-size:14px;
+}
+table.cal{width:100%; border-collapse:collapse; table-layout:fixed}
+table.cal th{
+  font-size:10px; color:var(--muted); font-weight:600; padding:5px 0;
+  border-bottom:1px solid var(--line);
+}
+table.cal th.sun{color:var(--hold)} table.cal th.sat{color:var(--watch)}
+table.cal td{
+  height:46px; vertical-align:top; padding:3px 2px;
+  border-bottom:1px solid var(--line); text-align:center;
+}
+table.cal td .d{font-size:11px; color:var(--muted)}
+table.cal td.today{background:var(--warn-bg)}
+table.cal td.today .d{color:var(--ink); font-weight:700}
+table.cal td.other .d{opacity:.3}
+.dots{display:flex; flex-wrap:wrap; gap:2px; justify-content:center; margin-top:3px}
+.dot{width:6px; height:6px; border-radius:50%}
+.dot.holding{background:var(--hold)} .dot.watch{background:var(--watch)}
+
+/* フォーム */
+form.box{
+  background:var(--card); border:1px solid var(--line);
+  border-radius:10px; padding:15px; margin-bottom:14px;
+}
+form.box label{display:block; font-size:12px; color:var(--muted); margin:9px 0 4px}
+form.box input, form.box select{
+  width:100%; padding:11px; font-size:16px; /* 16px未満だとiOSで拡大される */
+  border:1px solid var(--line); border-radius:8px;
+  background:var(--bg); color:var(--ink);
+}
+form.box button{margin-top:13px; padding:12px}
+.msg{
+  border-radius:8px; padding:11px 14px; font-size:13px; margin-bottom:14px;
+  background:var(--card); border:1px solid var(--line);
+}
+.msg.ok{border-left:4px solid var(--watch)}
+.msg.ng{border-left:4px solid var(--hold)}
+.del{
+  background:none; border:1px solid var(--line); color:var(--muted);
+  border-radius:6px; padding:5px 9px; font-size:11px; width:auto; margin:0; cursor:pointer;
+}
 `;
+
+/** 画面上部のナビゲーション。current は 'list' | 'cal' | 'stocks' */
+function nav(current) {
+  const item = (href, key, text) =>
+    `<a href="${href}"${current === key ? ' class="on"' : ''}>${text}</a>`;
+  return `<nav>${item('/', 'list', '一覧')}${item('/calendar', 'cal', 'カレンダー')}`
+    + `${item('/stocks', 'stocks', '銘柄')}</nav>`;
+}
 
 function loginPage(error = '') {
   return html(`<!doctype html><html lang="ja"><head>
@@ -218,15 +282,24 @@ function loginPage(error = '') {
 </form></body></html>`, error ? 401 : 200);
 }
 
-async function calendarPage(env) {
+/** 日付の出どころを示すバッジ。J-Quantsで確定したものには何も付けない */
+function provBadge(source) {
+  if (source === 'jquants') return '';
+  if (source === 'manual') return '<span class="prov">手入力</span>';
+  return '<span class="prov">予定</span>';
+}
+
+async function listPage(env) {
   const today = todayJST();
 
   const [earningsRs, stocksRs, runRs] = await env.DB.batch([
     env.DB.prepare(`
       SELECT e.date, e.fq, e.source, s.code, s.name, s.type
-      FROM earnings e
-      JOIN stocks s ON s.code = e.code
-      ORDER BY e.date ASC
+      FROM earnings e JOIN stocks s ON s.code = e.code
+      UNION ALL
+      SELECT m.date, NULL AS fq, 'manual' AS source, s.code, s.name, s.type
+      FROM manual_earnings m JOIN stocks s ON s.code = m.code
+      ORDER BY date ASC
     `),
     env.DB.prepare(`
       SELECT code, name, type, auto_fetch, fy_note
@@ -253,7 +326,7 @@ async function calendarPage(env) {
     return `<li class="row ${esc(r.type)}${isPast ? ' past' : ''}">
       <div class="date"><div class="md">${md}</div><div class="dow">${dow}</div></div>
       <div class="info">
-        <div class="name">${esc(r.name)}${r.source !== 'jquants' ? '<span class="prov">予定</span>' : ''}</div>
+        <div class="name">${esc(r.name)}${provBadge(r.source)}</div>
         <div class="meta">${esc(r.code)}${r.fq ? ` ・ ${esc(r.fq)}` : ''}</div>
       </div>
       <span class="tag ${esc(r.type)}">${label(r.type)}</span>
@@ -269,7 +342,7 @@ async function calendarPage(env) {
     const { md, dow } = formatDate(n.date);
     nextHtml = `<div class="next">
       <div class="when">つぎの決算発表 — ${when}</div>
-      <div class="big">${esc(n.name)}${n.source !== 'jquants' ? '<span class="prov">予定</span>' : ''}</div>
+      <div class="big">${esc(n.name)}${provBadge(n.source)}</div>
       <div class="meta">${md}（${dow}）・${esc(n.code)}${n.fq ? ` ・ ${esc(n.fq)}` : ''}
         ・${label(n.type)}銘柄</div>
     </div>`;
@@ -333,6 +406,7 @@ async function calendarPage(env) {
   <h1>決算カレンダー</h1>
   <div class="sub">EARNINGS CALENDAR</div>
 </header>
+${nav('list')}
 
 ${nextHtml}
 
@@ -357,6 +431,301 @@ ${past.length ? `<h2>最近おわった発表</h2><ul>${past.map((r) => rowHtml(
 
 ${footerHtml}
 </div></body></html>`);
+}
+
+
+/** 月カレンダー。?ym=YYYY-MM で表示する月を切り替える */
+async function calendarGridPage(env, ymParam) {
+  const today = todayJST();
+  const ym = /^\d{4}-\d{2}$/.test(ymParam || '') ? ymParam : today.slice(0, 7);
+  const [y, m] = ym.split('-').map(Number);
+
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const from = `${ym}-01`;
+  const to = `${ym}-${String(lastDay).padStart(2, '0')}`;
+
+  const { results } = await env.DB.prepare(`
+    SELECT e.date, e.fq, e.source, s.code, s.name, s.type
+    FROM earnings e JOIN stocks s ON s.code = e.code
+    WHERE e.date BETWEEN ?1 AND ?2
+    UNION ALL
+    SELECT m.date, NULL AS fq, 'manual' AS source, s.code, s.name, s.type
+    FROM manual_earnings m JOIN stocks s ON s.code = m.code
+    WHERE m.date BETWEEN ?1 AND ?2
+    ORDER BY date ASC
+  `).bind(from, to).all();
+
+  const byDate = new Map();
+  for (const r of results || []) {
+    if (!byDate.has(r.date)) byDate.set(r.date, []);
+    byDate.get(r.date).push(r);
+  }
+
+  // 前月・翌月へのリンク
+  const shift = (delta) => {
+    const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+  };
+
+  // 1日が何曜日から始まるかに合わせて、日曜始まりの格子を組む
+  const firstDow = new Date(Date.UTC(y, m - 1, 1)).getUTCDay();
+  const cells = Math.ceil((firstDow + lastDay) / 7) * 7;
+
+  let grid = '';
+  for (let i = 0; i < cells; i++) {
+    if (i % 7 === 0) grid += '<tr>';
+    const dayNum = i - firstDow + 1;
+    if (dayNum < 1 || dayNum > lastDay) {
+      grid += '<td class="other"></td>';
+    } else {
+      const ymd = `${ym}-${String(dayNum).padStart(2, '0')}`;
+      const items = byDate.get(ymd) || [];
+      const dots = items.length
+        ? `<div class="dots">${items.map((r) => `<span class="dot ${esc(r.type)}"></span>`).join('')}</div>`
+        : '';
+      grid += `<td class="${ymd === today ? 'today' : ''}"><div class="d">${dayNum}</div>${dots}</td>`;
+    }
+    if (i % 7 === 6) grid += '</tr>';
+  }
+
+  const label = (t) => (t === 'holding' ? '保有' : '監視');
+  const monthList = (results || []).length
+    ? `<ul>${(results || []).map((r) => {
+        const { md, dow } = formatDate(r.date);
+        return `<li class="row ${esc(r.type)}${r.date < today ? ' past' : ''}">
+          <div class="date"><div class="md">${md}</div><div class="dow">${dow}</div></div>
+          <div class="info">
+            <div class="name">${esc(r.name)}${provBadge(r.source)}</div>
+            <div class="meta">${esc(r.code)}${r.fq ? ` ・ ${esc(r.fq)}` : ''}</div>
+          </div>
+          <span class="tag ${esc(r.type)}">${label(r.type)}</span>
+        </li>`;
+      }).join('')}</ul>`
+    : '<div class="empty">この月の予定はまだありません</div>';
+
+  return html(`<!doctype html><html lang="ja"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>決算カレンダー</title>
+<style>${STYLES}</style></head><body><div class="wrap">
+<header>
+  <h1>決算カレンダー</h1>
+  <div class="sub">EARNINGS CALENDAR</div>
+</header>
+${nav('cal')}
+
+<div class="calhead">
+  <a href="/calendar?ym=${shift(-1)}">‹ 前月</a>
+  <div class="ym">${y}年${m}月</div>
+  <a href="/calendar?ym=${shift(1)}">翌月 ›</a>
+</div>
+
+<table class="cal">
+  <tr>
+    <th class="sun">日</th><th>月</th><th>火</th><th>水</th>
+    <th>木</th><th>金</th><th class="sat">土</th>
+  </tr>
+  ${grid}
+</table>
+
+<h2>${y}年${m}月の予定（${(results || []).length}件）</h2>
+${monthList}
+</div></body></html>`);
+}
+
+
+/* --------------------------------------------------------- 銘柄の管理（画面側） */
+
+// 画面に出すメッセージ。任意の文字列をURLから受け取らず、決まった文言だけを出す
+const MESSAGES = {
+  added: ['ok', '銘柄を追加しました'],
+  deleted: ['ok', '銘柄を削除しました'],
+  date_added: ['ok', '決算日を追加しました'],
+  date_deleted: ['ok', '決算日を削除しました'],
+  bad_code: ['ng', '4桁の証券コードを入力してください'],
+  not_listed: ['ng', 'その証券コードは上場銘柄一覧に見つかりません。番号をご確認ください'],
+  exists: ['ng', 'その銘柄はすでに登録されています'],
+  bad_date: ['ng', '日付の形式が正しくありません'],
+  no_stock: ['ng', '銘柄を選んでください'],
+};
+
+async function stocksPage(env, msgKey) {
+  const [stocksRs, manualRs] = await env.DB.batch([
+    env.DB.prepare(`
+      SELECT code, name, type, auto_fetch, fy_note FROM stocks ORDER BY type DESC, code ASC
+    `),
+    env.DB.prepare(`
+      SELECT m.id, m.date, m.code, s.name FROM manual_earnings m
+      JOIN stocks s ON s.code = m.code ORDER BY m.date ASC
+    `),
+  ]);
+  const stocks = stocksRs.results || [];
+  const manual = manualRs.results || [];
+
+  const msg = MESSAGES[msgKey]
+    ? `<div class="msg ${MESSAGES[msgKey][0]}">${esc(MESSAGES[msgKey][1])}</div>`
+    : '';
+
+  const label = (t) => (t === 'holding' ? '保有' : '監視');
+
+  const stockRows = stocks.map((s) => `<li class="row ${esc(s.type)}">
+    <div class="info">
+      <div class="name">${esc(s.name)}</div>
+      <div class="meta">${esc(s.code)} ・ ${label(s.type)}${
+        s.auto_fetch ? '' : ` ・ 自動取得の対象外${s.fy_note ? `（${esc(s.fy_note)}）` : ''}`
+      }</div>
+    </div>
+    <form method="post" action="/stocks/delete" style="margin:0">
+      <input type="hidden" name="code" value="${esc(s.code)}">
+      <button class="del" type="submit">削除</button>
+    </form>
+  </li>`).join('');
+
+  const manualRows = manual.length
+    ? `<ul>${manual.map((m) => {
+        const { md, dow } = formatDate(m.date);
+        return `<li class="row">
+          <div class="date"><div class="md">${md}</div><div class="dow">${dow}</div></div>
+          <div class="info">
+            <div class="name">${esc(m.name)}</div>
+            <div class="meta">${esc(m.code)} ・ ${esc(m.date)}</div>
+          </div>
+          <form method="post" action="/dates/delete" style="margin:0">
+            <input type="hidden" name="id" value="${esc(m.id)}">
+            <button class="del" type="submit">削除</button>
+          </form>
+        </li>`;
+      }).join('')}</ul>`
+    : '<div class="empty">手入力の決算日はまだありません</div>';
+
+  const options = stocks.map((s) =>
+    `<option value="${esc(s.code)}">${esc(s.code)} ${esc(s.name)}</option>`).join('');
+
+  return html(`<!doctype html><html lang="ja"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>銘柄の管理 — 決算カレンダー</title>
+<style>${STYLES}</style></head><body><div class="wrap">
+<header>
+  <h1>銘柄の管理</h1>
+  <div class="sub">MANAGE STOCKS</div>
+</header>
+${nav('stocks')}
+${msg}
+
+<h2>銘柄を追加</h2>
+<form class="box" method="post" action="/stocks/add">
+  <label for="code">証券コード（4桁）</label>
+  <input id="code" name="code" inputmode="numeric" pattern="[0-9]{4}" maxlength="4"
+         placeholder="7203" required>
+  <label for="type">種別</label>
+  <select id="type" name="type">
+    <option value="holding">保有銘柄</option>
+    <option value="watch">監視銘柄</option>
+  </select>
+  <label style="margin-top:14px">
+    <input type="checkbox" name="manual_only" value="1" style="width:auto; margin-right:7px">
+    3月期・9月期以外の決算（自動取得できない）
+  </label>
+  <button type="submit">追加する</button>
+</form>
+<div class="note" style="margin-bottom:8px">
+  会社名は証券コードから<b>自動で入力</b>されます。決算期が分からない場合は
+  チェックを入れずに追加してください。3月期・9月期なら決算シーズンに自動で日付が入り、
+  そうでなければ日付が入らないだけで、害はありません。
+</div>
+
+<h2>決算日を手で追加</h2>
+<form class="box" method="post" action="/dates/add">
+  <label for="mcode">銘柄</label>
+  <select id="mcode" name="code" required>${options}</select>
+  <label for="mdate">決算発表日</label>
+  <input id="mdate" name="date" type="date" required>
+  <button type="submit">追加する</button>
+</form>
+<div class="note" style="margin-bottom:8px">
+  自動取得の対象外の銘柄は、会社のIRページなどで日付を確認して、ここに入力してください。
+  <b>J-Quantsが取得した日付とは別に管理される</b>ので、自動更新で消えることはありません。
+</div>
+
+<h2>手入力の決算日（${manual.length}件）</h2>
+${manualRows}
+
+<h2>登録済みの銘柄（${stocks.length}件）</h2>
+<ul>${stockRows}</ul>
+</div></body></html>`);
+}
+
+/* 以下は画面から stocks / manual_earnings に書き込む処理。
+   GitHub Actions はこの2つのテーブルに書き込まないため、書き手は常に1つに保たれる。 */
+
+async function handleAddStock(request, env) {
+  const form = await request.formData();
+  const code = String(form.get('code') || '').trim();
+  const type = form.get('type') === 'watch' ? 'watch' : 'holding';
+  const autoFetch = form.get('manual_only') === '1' ? 0 : 1;
+
+  if (!/^\d{4}$/.test(code)) return redirectStocks('bad_code');
+
+  const listed = await env.DB.prepare('SELECT name FROM listed WHERE code = ?1')
+    .bind(code).first();
+  if (!listed) return redirectStocks('not_listed');
+
+  const dup = await env.DB.prepare('SELECT code FROM stocks WHERE code = ?1')
+    .bind(code).first();
+  if (dup) return redirectStocks('exists');
+
+  await env.DB.prepare(`
+    INSERT INTO stocks (code, name, type, auto_fetch, fy_note)
+    VALUES (?1, ?2, ?3, ?4, ?5)
+  `).bind(code, listed.name, type, autoFetch,
+          autoFetch ? null : '3月期・9月期以外（手入力）').run();
+
+  return redirectStocks('added');
+}
+
+async function handleDeleteStock(request, env) {
+  const form = await request.formData();
+  const code = String(form.get('code') || '').trim();
+  if (!/^\d{4}$/.test(code)) return redirectStocks('bad_code');
+  // 銘柄を消したら、その銘柄の手入力日付も一緒に片付ける
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM manual_earnings WHERE code = ?1').bind(code),
+    env.DB.prepare('DELETE FROM stocks WHERE code = ?1').bind(code),
+  ]);
+  return redirectStocks('deleted');
+}
+
+async function handleAddDate(request, env) {
+  const form = await request.formData();
+  const code = String(form.get('code') || '').trim();
+  const date = String(form.get('date') || '').trim();
+  if (!/^\d{4}$/.test(code)) return redirectStocks('no_stock');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return redirectStocks('bad_date');
+
+  const stock = await env.DB.prepare('SELECT code FROM stocks WHERE code = ?1')
+    .bind(code).first();
+  if (!stock) return redirectStocks('no_stock');
+
+  await env.DB.prepare(`
+    INSERT INTO manual_earnings (code, date) VALUES (?1, ?2)
+    ON CONFLICT (code, date) DO NOTHING
+  `).bind(code, date).run();
+  return redirectStocks('date_added');
+}
+
+async function handleDeleteDate(request, env) {
+  const form = await request.formData();
+  const id = Number(form.get('id'));
+  if (!Number.isInteger(id)) return redirectStocks('bad_date');
+  await env.DB.prepare('DELETE FROM manual_earnings WHERE id = ?1').bind(id).run();
+  return redirectStocks('date_deleted');
+}
+
+/** 二重送信を防ぐため、書き込み後は必ずGETへ転送する */
+function redirectStocks(msg) {
+  return new Response(null, { status: 303, headers: { Location: `/stocks?msg=${msg}` } });
 }
 
 /* ------------------------------------------------- GitHub Actions 用 同期API */
@@ -496,9 +865,26 @@ export default {
     }
 
     // --- 画面（要ログイン）---
-    if (path === '/' || path === '/calendar') {
-      if (!(await isAuthed(request, env))) return loginPage();
-      return calendarPage(env);
+    // 以降はすべてログイン必須。書き込みも同じ関門の内側にある。
+    // Cookieは SameSite=Lax なので、他サイトからのPOSTでは送られない（CSRF対策）。
+    const authed = await isAuthed(request, env);
+
+    if (path === '/' || path === '/calendar' || path === '/stocks'
+        || path.startsWith('/stocks/') || path.startsWith('/dates/')) {
+      if (!authed) return loginPage();
+    }
+
+    if (path === '/') return listPage(env);
+    if (path === '/calendar') return calendarGridPage(env, url.searchParams.get('ym'));
+    if (path === '/stocks' && request.method === 'GET') {
+      return stocksPage(env, url.searchParams.get('msg'));
+    }
+
+    if (request.method === 'POST') {
+      if (path === '/stocks/add') return handleAddStock(request, env);
+      if (path === '/stocks/delete') return handleDeleteStock(request, env);
+      if (path === '/dates/add') return handleAddDate(request, env);
+      if (path === '/dates/delete') return handleDeleteDate(request, env);
     }
 
     return new Response('Not Found', { status: 404 });
