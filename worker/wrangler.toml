@@ -9,7 +9,7 @@ workers_dev = true
 binding = "DB"
 database_name = "kessan-calendar"
 # ↓ wrangler d1 create 実行後に出力されるIDをここに貼る
-database_id = "PLACEHOLDER_DATABASE_ID"
+database_id = "ad477b42-7c21-4790-8415-73eb0e0884ab"
 
 # secret（コードには絶対に書かない。wrangler secret put で登録する）
 #   VIEW_PASSWORD … 画面の合言葉

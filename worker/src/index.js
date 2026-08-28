@@ -467,7 +467,12 @@ export default {
       const form = await request.formData();
       const given = String(form.get('password') || '');
       if (!env.VIEW_PASSWORD) return loginPage('サーバー側の合言葉が未設定です');
-      if (!safeEqual(given, env.VIEW_PASSWORD)) return loginPage('合言葉が違います');
+      if (!safeEqual(given, env.VIEW_PASSWORD)) {
+        // 失敗時だけ約1秒待たせる。総当たり攻撃の試行速度を落とすための措置で、
+        // D1に記録を残さずに済むため「書き込みはActionsのみ」の原則を崩さない。
+        await new Promise((r) => setTimeout(r, 1000));
+        return loginPage('合言葉が違います');
+      }
 
       const cookie = await issueCookie(env);
       return new Response(null, {
