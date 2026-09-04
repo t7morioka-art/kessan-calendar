@@ -3,9 +3,16 @@ name: 決算日の日次同期
 on:
   schedule:
     # cron は UTC で書く。日本時間 = UTC + 9時間。
-    #   "0 11 * * *" (UTC) = 毎日 20:00 JST
-    # JPXが発表予定を更新するのが19時頃なので、その後を狙って20時に実行する。
+    #   "0 11 * * *" (UTC) = 毎日 20:00 JST  … JPXの更新(19時頃)の直後を狙う本命
+    #   "0 20 * * *" (UTC) = 毎日 05:00 JST  … 取りこぼしを拾う保険
+    #
+    # 1日2回にしている理由:
+    # GitHub Actions のスケジュール実行は混雑時に数時間ずれる（実測で最大10時間）。
+    # JPXが公表したデータは次の公表まで約24時間有効なので1回でも通常は足りるが、
+    # 遅延が23時間を超えると1営業日ぶん丸ごと取りこぼす。2回にして余裕を作る。
+    # 書き込みはUPSERTなので、同じ内容を2回取得しても行は増えない。
     - cron: '0 11 * * *'
+    - cron: '0 20 * * *'
   workflow_dispatch:
     inputs:
       dry_run:
@@ -22,6 +29,8 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: write   # 下の「自動停止の防止」で空コミットを積むために必要
     steps:
       - uses: actions/checkout@v4
 
@@ -56,3 +65,22 @@ jobs:
           SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: python scripts/sync_earnings.py
+
+      # GitHubは公開リポジトリで60日間コミットが無いと、
+      # スケジュール実行を自動で無効化する（issueやスターでは時計は戻らない）。
+      # 毎日走るだけではコミットが発生しないため、45日ごとに空コミットを積んで防ぐ。
+      - name: 自動停止の防止
+        if: always()
+        run: |
+          LAST=$(git log -1 --format=%ct)
+          DAYS=$(( ( $(date +%s) - LAST ) / 86400 ))
+          echo "最後のコミットから ${DAYS} 日経過"
+          if [ "$DAYS" -ge 45 ]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit --allow-empty -m "chore: スケジュール実行の自動停止を防ぐための空コミット"
+            git push
+            echo "::notice::45日以上コミットが無かったため、空コミットを積みました"
+          else
+            echo "まだ余裕があるので何もしません（45日で実行）"
+          fi
